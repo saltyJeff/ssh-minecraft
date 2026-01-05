@@ -18,15 +18,20 @@ Typical Minecraft servers expose a raw TCP port to the public internet, which ca
 ### Network Diagram:
 
 ```mermaid
-graph TD
-    User([Minecraft Player]) -- "SSH Tunnel (Port 22/Custom)" --> Host[Host Machine]
-    Host -- "Port Forward" --> Container[Podman Container]
-    subgraph Container
-        SSHD[SSH Daemon]
-        MC[Minecraft Server]
-        SSHD -- "Internal Forward" --> MC
+flowchart TD
+    client("minecraft client")
+    subgraph Server
+        publicport("public port (e.g. 25565)")
+        subgraph Container
+            ssh("SSH Server")
+            server("Minecraft Server")
+            ssh <-- SSH port forward --> server
+        end
+        publicport <-- network bridge --> ssh
+        filesystem("/opt/minecraft")
+        server <-- volume mount --> filesystem
     end
-    MC -- "Listen" --> L[localhost:25565]
+    client <--> publicport
 ```
 
 ## Setup
