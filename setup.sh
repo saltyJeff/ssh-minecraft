@@ -13,31 +13,74 @@ fi
 echo "Welcome to the SSH Minecraft Server Setup Wizard!"
 echo "-------------------------------------------------"
 
-# 2. Ask for inputs
-read -p "Enter server port [25565]: " SERVER_PORT
-SERVER_PORT=${SERVER_PORT:-25565}
+# Store absolute path to config file based on initial CWD
+CONFIG_FILE="$(pwd)/ssh_minecraft.toml"
 
-read -p "Enter SSH username [steve]: " SSH_USER
-SSH_USER=${SSH_USER:-steve}
+# Helper to read a key from TOML-like config
+get_config_value() {
+    local key=$1
+    if [ -f "$CONFIG_FILE" ]; then
+        grep "^$key =" "$CONFIG_FILE" | sed -E 's/^.*= "(.*)"$/\1/'
+    fi
+}
+
+# Load config
+if [ -f "$CONFIG_FILE" ]; then
+    echo "Found configuration file: $CONFIG_FILE"
+    SERVER_PORT=$(get_config_value "server_port")
+    SSH_USER=$(get_config_value "ssh_user")
+    SSH_PASSWORD=$(get_config_value "ssh_password")
+    SERVER_FILEPATH=$(get_config_value "server_filepath")
+    SERVER_JAR=$(get_config_value "server_jar")
+    START_ON_BOOT=$(get_config_value "start_on_boot")
+fi
+
+# 2. Ask for inputs (only if not loaded)
+
+if [ -z "$SERVER_PORT" ]; then
+    read -p "Enter server port [25565]: " SERVER_PORT
+    SERVER_PORT=${SERVER_PORT:-25565}
+else
+    echo "Using configured Port: $SERVER_PORT"
+fi
+
+if [ -z "$SSH_USER" ]; then
+    read -p "Enter SSH username [steve]: " SSH_USER
+    SSH_USER=${SSH_USER:-steve}
+else
+    echo "Using configured SSH User: $SSH_USER"
+fi
 
 # Secure password prompt
-while true; do
-    read -s -p "Enter SSH password: " SSH_PASSWORD
-    echo
-    read -s -p "Confirm SSH password: " SSH_PASSWORD_CONFIRM
-    echo
-    if [ "$SSH_PASSWORD" = "$SSH_PASSWORD_CONFIRM" ] && [ -n "$SSH_PASSWORD" ]; then
-        break
-    else
-        echo "Passwords do not match or are empty. Please try again."
-    fi
-done
+if [ -z "$SSH_PASSWORD" ]; then
+    while true; do
+        read -s -p "Enter SSH password: " SSH_PASSWORD
+        echo
+        read -s -p "Confirm SSH password: " SSH_PASSWORD_CONFIRM
+        echo
+        if [ "$SSH_PASSWORD" = "$SSH_PASSWORD_CONFIRM" ] && [ -n "$SSH_PASSWORD" ]; then
+            break
+        else
+            echo "Passwords do not match or are empty. Please try again."
+        fi
+    done
+else
+    echo "Using configured SSH Password."
+fi
 
-read -p "Enter server filepath [/opt/minecraft]: " SERVER_FILEPATH
-SERVER_FILEPATH=${SERVER_FILEPATH:-/opt/minecraft}
+if [ -z "$SERVER_FILEPATH" ]; then
+    read -p "Enter server filepath [/opt/minecraft]: " SERVER_FILEPATH
+    SERVER_FILEPATH=${SERVER_FILEPATH:-/opt/minecraft}
+else
+    echo "Using configured Server Path: $SERVER_FILEPATH"
+fi
 
-read -p "Enter server jar path [./minecraft_server.jar]: " SERVER_JAR
-SERVER_JAR=${SERVER_JAR:-./minecraft_server.jar}
+if [ -z "$SERVER_JAR" ]; then
+    read -p "Enter server jar path [./minecraft_server.jar]: " SERVER_JAR
+    SERVER_JAR=${SERVER_JAR:-./minecraft_server.jar}
+else
+    echo "Using configured Jar Path: $SERVER_JAR"
+fi
 
 # Validate server jar exists
 if [ ! -f "$SERVER_JAR" ]; then
@@ -103,8 +146,12 @@ podman build \
 
 # 7. Start server options
 echo "-------------------------------------------------"
-read -p "Do you want to start the server on startup (systemd)? [y/N]: " START_ON_BOOT
-START_ON_BOOT=${START_ON_BOOT:-n}
+if [ -z "$START_ON_BOOT" ]; then
+    read -p "Do you want to start the server on startup (systemd)? [y/N]: " START_ON_BOOT
+    START_ON_BOOT=${START_ON_BOOT:-n}
+else 
+    echo "Using configured Start on Boot: $START_ON_BOOT"
+fi
 
 CONTAINER_NAME="ssh_minecraft_container"
 
@@ -151,4 +198,15 @@ else
     echo "Starting server in current window..."
     podman run -it --rm "${PODMAN_ARGS[@]}" ssh_minecraft_image
 fi
+
+# Save config
+echo "Saving configuration to $CONFIG_FILE..."
+cat > "$CONFIG_FILE" <<EOF
+server_port = "$SERVER_PORT"
+ssh_user = "$SSH_USER"
+ssh_password = "$SSH_PASSWORD"
+server_filepath = "$SERVER_FILEPATH"
+server_jar = "$SERVER_JAR"
+start_on_boot = "$START_ON_BOOT"
+EOF
 
