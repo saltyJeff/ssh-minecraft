@@ -1,9 +1,13 @@
-FROM quay.io/fedora/fedora-minimal:43
+FROM debian:13-slim
 
 ARG SSH_USER
 ARG SSH_PASSWORD
 
-RUN dnf install -y java-21-openjdk-headless openssh-server && dnf clean all
+# Update repos and install OpenJDK 21 + OpenSSH
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-21-jre-headless openssh-server && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/sh "$SSH_USER" && \
     echo "$SSH_USER:$SSH_PASSWORD" | chpasswd && \
