@@ -1,4 +1,4 @@
-FROM fedora:43
+FROM quay.io/fedora/fedora-minimal:43
 
 ARG SSH_USER
 ARG SSH_PASSWORD
